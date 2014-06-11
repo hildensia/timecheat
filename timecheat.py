@@ -1,21 +1,22 @@
-#!/usr/bin/python2
+#!/usr/bin/env python
+# encoding: utf-8
+
 import argparse
 from random import gauss
 from math import sqrt, modf
 from datetime import date, datetime, time, timedelta
 import calendar
-from string import strip
 from printer import TextPrinter, LatexPrinter
 import locale
 from os import environ
 
 
 week_workday_map = {
-  'Monday' : calendar.MONDAY,
-  'Tuesday' : calendar.TUESDAY,
-  'Wednesday' : calendar.WEDNESDAY,
-  'Thursday' : calendar.THURSDAY,
-  'Friday' : calendar.FRIDAY
+    'Monday': calendar.MONDAY,
+    'Tuesday': calendar.TUESDAY,
+    'Wednesday': calendar.WEDNESDAY,
+    'Thursday': calendar.THURSDAY,
+    'Friday': calendar.FRIDAY
 }
 
 
@@ -59,48 +60,35 @@ def get_prev_year_month():
     return previous.year,  previous.month
 
 
-def get_holidays(filenames):
-    holidays = []
-    if filenames:
-        for f in filenames:
-            holiday_file = file(f)
-            for h in holiday_file.readlines():
-                h = strip(h, '\n')
-                holidays.append(datetime.strptime(h, '%d.%m.%Y').date())
-    return holidays
-
-
-def get_unholidays(filenames):
-    unholidays = []
-    if filenames:
-        for f in filenames:
-            unholiday_file = file(f)
-            for h in unholiday_file.readlines():
-                h = strip(h, '\n')
-                unholidays.append(datetime.strptime(h, '%d.%m.%Y').date())
-    return unholidays
+def get_days_from_file(filenames):
+    days = [datetime.strptime(line.strip(), '%d.%m.%Y').date()
+            for f in filenames
+            for line in open(f) if line.strip()]
+    return days
 
 
 def is_valid_week_workdays(week_workdays, possible_days):
-  for day in week_workdays:
-      if day not in possible_days: return False
-  return True
+    for day in week_workdays:
+        if day not in possible_days:
+            return False
+    return True
 
 
 def get_workdays_of_week(week_workdays):
-  possible_days = week_workday_map.keys()
-  if not week_workdays:
-      week_workdays = possible_days
-  if not is_valid_week_workdays(week_workdays, possible_days): return None
+    possible_days = week_workday_map.keys()
+    if not week_workdays:
+        week_workdays = possible_days
+    if not is_valid_week_workdays(week_workdays, possible_days):
+        return None
 
-  return [week_workday_map[day] for day in week_workdays]
+    return [week_workday_map[day] for day in week_workdays]
 
 
 def get_work_days(year, month, holiday_files, unholiday_files, week_workdays):
     cal = calendar.Calendar()
     workdays = []
-    holidays = get_holidays(holiday_files)
-    unholidays = get_unholidays(unholiday_files)
+    holidays = get_days_from_file(holiday_files)
+    unholidays = get_days_from_file(unholiday_files)
     for day in cal.itermonthdates(year, month):
         if (((day.weekday() in week_workdays and
                 day not in holidays) or
@@ -134,7 +122,7 @@ def print_sheet(printer, workdays, args):
         printer.print_divider()
         printer.print_week(week, day_num_week, args.worktime[0])
         printer.print_divider()
-    printer.print_month(calendar.month_name[args.month], day_num_month, 
+    printer.print_month(calendar.month_name[args.month], day_num_month,
                         args.worktime[0])
     printer.print_footer()
 
@@ -174,7 +162,7 @@ def main():
     parser.add_argument('--month', metavar='month', default=prev_month,
                         type=int,
                         help='The month for which the timesheet'
-                        ' should be printed. Default: Current month')
+                        ' should be printed. Default: previous month')
     parser.add_argument('--output', nargs=1, metavar='format',
                         default=['template'], type=str, help='The output format.' +
                         ' May be \'text\', \'template\'  or \'latex\'. ' +
@@ -187,31 +175,31 @@ def main():
                         'holiday dates. Format is each day in a line in ' +
                         ' german order, e.g.: 24.03.2013')
     parser.add_argument('--unholidays', nargs='*', metavar='file',
-                        type=str, help='A file ' +
+                        default=[], type=str,
+                        help='A file ' +
                         'working dates. Format is each day in a line in ' +
                         ' german order, e.g.: 24.03.2013')
     parser.add_argument('--weekworkdays', nargs='*', metavar='string',
                         type=str, help='A list of workdays in the week. ' +
-                        'Defaults to \'Monday Tuesday Wednesday Thursday Friday\',' 
+                        'Defaults to \'Monday Tuesday Wednesday Thursday Friday\','
                         'any subset of those days can be specified. The list ' +
-                        'should be space delimited.') 
+                        'should be space delimited.')
 
     args = parser.parse_args()
 
     # Parse the week workdays (e.g. Monday, Tuesday, etc.).
     week_workdays = get_workdays_of_week(args.weekworkdays)
     if not week_workdays:
-      print 'ERROR -- invalid week workdays:', args.weekworkdays
-      exit(1)
+        print 'ERROR -- invalid week workdays:', args.weekworkdays
+        exit(1)
 
     # Get the collection work days in this month based on the days of the week
     # you work.
     workdays = get_work_days(args.year, args.month, args.holidays,
-                            args.unholidays, week_workdays)
+                             args.unholidays, week_workdays)
 
     # If a name was specified in the args, then parse it out.
-    if args.name: name = ' '.join(args.name)
-    else: name = None
+    name = ' '.join(args.name) if args.name else None
 
     # Figure out which printer to use.
     if args.output[0] == 'text':
@@ -226,15 +214,5 @@ def main():
     print_sheet(printer, workdays, args)
 
 
-# Example commandline (copy into a bash script):
-#
-# F=timesheet_november
-# MONTH=11
-#
-# python timecheat.py \
-#   --name Justin Timberlake \
-#   --weekworkdays Tuesday Thursday \
-#   --start 10 --worktime 10 --year 2013 \
-#   --month $MONTH > $F.tex
 if __name__ == "__main__":
     main()
